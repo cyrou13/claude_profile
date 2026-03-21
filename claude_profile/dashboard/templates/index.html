@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Usage Tab -->
+<section id="usage" class="tab-panel">
+    <h2>Usage Overview</h2>
+    <div hx-get="/api/usage/summary" hx-trigger="load" hx-swap="innerHTML">
+        <p aria-busy="true">Chargement des stats...</p>
+    </div>
+</section>
+
+<!-- Sessions Tab -->
+<section id="sessions" class="tab-panel" style="display:none">
+    <h2>Sessions</h2>
+    <div>
+        <select id="session-profile-filter"
+                hx-get="/api/usage/sessions"
+                hx-trigger="change"
+                hx-target="#sessions-content"
+                hx-include="this"
+                name="profile">
+            <option value="">Tous les profils</option>
+            {% for p in config.profiles %}
+            <option value="{{ p.name }}">{{ p.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="sessions-content">
+        <p aria-busy="true">Chargement des sessions...</p>
+    </div>
+</section>
+
+<!-- Profiles Tab -->
+<section id="profiles" class="tab-panel" style="display:none">
+    <h2>Profils</h2>
+    <div id="profiles-content">
+        <p aria-busy="true">Chargement des profils...</p>
+    </div>
+</section>
+
+<!-- Veille Tab -->
+<section id="veille" class="tab-panel" style="display:none">
+    <h2>Veille</h2>
+    <button hx-get="/api/veille/refresh" hx-target="#veille-status" hx-swap="innerHTML" class="outline">
+        Rafraichir les sources
+    </button>
+    <span id="veille-status"></span>
+
+    <h3>Releases</h3>
+    <div id="releases-content">
+        <p aria-busy="true">Chargement...</p>
+    </div>
+
+    <h3>Articles &amp; Discussions (dev.to + Hacker News)</h3>
+    <div id="feed-content">
+        <p aria-busy="true">Chargement...</p>
+    </div>
+
+    <h3>Communaute</h3>
+    <div id="community-content">
+        <p aria-busy="true">Chargement...</p>
+    </div>
+</section>
+
+<!-- Recommendations Tab -->
+<section id="recs" class="tab-panel" style="display:none">
+    <h2>Recommandations</h2>
+    <div id="recs-content">
+        <p aria-busy="true">Analyse en cours...</p>
+    </div>
+</section>
+
+<!-- Guide Tab -->
+<section id="guide" class="tab-panel" style="display:none">
+    <h2>Guide d'utilisation</h2>
+
+    <article>
+        <header><strong>Installation rapide</strong></header>
+        <pre><code># Cloner et installer
+git clone &lt;repo&gt; &amp;&amp; cd claude-profile
+uv sync --dev
+
+# Ou avec le script tout-en-un
+./start.sh</code></pre>
+    </article>
+
+    <article>
+        <header><strong>Sync multi-machines</strong></header>
+        <p>Synchronise tes skills, agents, commands et CLAUDE.md entre Mac et Linux via un repo Git prive.</p>
+        <pre><code># Premier setup (cree le repo de sync)
+claude-profile sync init
+
+# Voir ce qui a change
+claude-profile sync status
+
+# Envoyer les modifs locales
+claude-profile sync push
+
+# Recuperer les modifs de l'autre machine
+claude-profile sync pull</code></pre>
+        <details>
+            <summary>Ce qui est synchronise</summary>
+            <ul>
+                <li><code>CLAUDE.md</code> — instructions globales</li>
+                <li><code>settings.json</code> — configuration Claude Code</li>
+                <li><code>skills/</code> — tous les fichiers SKILL.md + scripts</li>
+                <li><code>agents/</code> — definitions d'agents</li>
+                <li><code>commands/</code> — commandes custom</li>
+                <li><code>CLAUDE.md</code> par projet — stockes par nom normalise</li>
+            </ul>
+        </details>
+        <details>
+            <summary>Ce qui est exclu</summary>
+            <p>Sessions, historique, cache, telemetrie, stats, plans, IDE, fichiers temporaires.</p>
+        </details>
+    </article>
+
+    <article>
+        <header><strong>Profils perso / pro</strong></header>
+        <p>Isole les contextes entre projets personnels et professionnels via des overlays CLAUDE.md.</p>
+        <pre><code># Lister les profils
+claude-profile profile list
+
+# Activer un profil (modifie ~/.claude/CLAUDE.md)
+claude-profile profile activate avicenna
+
+# Voir le profil actif et ses projets
+claude-profile profile show
+
+# Creer un nouveau profil
+claude-profile profile create devops \
+    --projects "infra,monitoring,ci-cd" \
+    --description "Projets DevOps"</code></pre>
+        <details>
+            <summary>Comment ca marche ?</summary>
+            <p>L'activation d'un profil ajoute un <strong>overlay</strong> en bas de ton <code>CLAUDE.md</code> global.
+            Cet overlay donne du contexte a Claude Code sur le perimetre actif. Le dashboard filtre aussi
+            les sessions et stats par profil.</p>
+        </details>
+    </article>
+
+    <article>
+        <header><strong>Dashboard</strong></header>
+        <p>Interface web pour visualiser ton usage de Claude Code.</p>
+        <pre><code># Lancer le dashboard (port 8741 par defaut)
+claude-profile dashboard
+
+# Port custom
+claude-profile dashboard --port 9000</code></pre>
+        <table>
+            <thead><tr><th>Onglet</th><th>Contenu</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Usage</strong></td><td>Messages, sessions, tokens, activite quotidienne, repartition par modele</td></tr>
+                <tr><td><strong>Sessions</strong></td><td>Tableau detaille filtrable par profil — duree, tokens, outcome</td></tr>
+                <tr><td><strong>Profils</strong></td><td>Stats agregees par profil (sessions, tokens, fichiers)</td></tr>
+                <tr><td><strong>Veille</strong></td><td>Releases Claude Code, articles dev.to + HN, repos communautaires</td></tr>
+                <tr><td><strong>Recommandations</strong></td><td>Suggestions d'optimisation : choix de modele, duree sessions, taux d'echec</td></tr>
+            </tbody>
+        </table>
+    </article>
+
+    <article>
+        <header><strong>Veille en CLI</strong></header>
+        <p>Consulter les dernieres nouveautes sans ouvrir le dashboard.</p>
+        <pre><code>claude-profile veille</code></pre>
+        <p>Sources : releases GitHub (<code>anthropics/claude-code</code>, <code>modelcontextprotocol/servers</code>), articles dev.to, Hacker News, repos communautaires.</p>
+    </article>
+
+    <article>
+        <header><strong>Configuration</strong></header>
+        <p>Fichier : <code>~/.config/claude-profile/config.toml</code></p>
+        <pre><code>[general]
+claude_home = "~/.claude"
+sync_repo = "~/Documents/dev/claude-profile-sync"
+
+[sync]
+include = ["CLAUDE.md", "settings.json", "skills/", "agents/", "commands/"]
+scan_dirs = ["~/Documents/dev"]
+
+[veille]
+check_interval_hours = 24
+github_repos = [
+    "anthropics/claude-code",
+    "modelcontextprotocol/servers",
+]
+
+[dashboard]
+port = 8741
+
+[[profiles]]
+name = "avicenna"
+projects = ["cortex", "aria", "reportia"]
+claude_md_overlay = """
+## Contexte : Avicenna.ai
+- Focus medical device SaaS
+"""</code></pre>
+    </article>
+
+    <article>
+        <header><strong>Variables d'environnement</strong></header>
+        <table>
+            <thead><tr><th>Variable</th><th>Usage</th><th>Requis</th></tr></thead>
+            <tbody>
+                <tr><td><code>GITHUB_TOKEN</code></td><td>API GitHub (releases, repos communautaires) — augmente le rate limit</td><td>Recommande</td></tr>
+            </tbody>
+        </table>
+    </article>
+</section>
+
+{% endblock %}

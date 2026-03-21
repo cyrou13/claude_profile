@@ -1,0 +1,79 @@
+/* Claude Profile Dashboard */
+
+.tab-link {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.tab-link.active {
+    opacity: 1;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+/* Bar chart */
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 120px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    margin-bottom: 1rem;
+}
+
+.bar-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+}
+
+.bar {
+    width: 100%;
+    min-height: 2px;
+    background: var(--pico-primary);
+    border-radius: 2px 2px 0 0;
+    transition: height 0.3s;
+}
+
+.bar-wrap:hover .bar {
+    background: var(--pico-primary-hover);
+}
+
+/* Recommendation priority */
+.rec-high {
+    border-left: 4px solid var(--pico-del-color, #e53935);
+}
+
+.rec-medium {
+    border-left: 4px solid var(--pico-ins-color, #f9a825);
+}
+
+.rec-low {
+    border-left: 4px solid var(--pico-muted-color, #666);
+}
+
+/* Outcome badges */
+.success {
+    color: var(--pico-ins-color, #43a047);
+}
+
+.error {
+    color: var(--pico-del-color, #e53935);
+}
+
+/* Cards grid */
+.grid article {
+    text-align: center;
+}
+
+/* Table */
+table {
+    font-size: 0.9em;
+}
+
+td code {
+    font-size: 0.85em;
+}

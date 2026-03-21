@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Profile Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>Claude Profile</strong></li>
+            </ul>
+            <ul>
+                <li><a href="#usage" class="tab-link active" data-tab="usage">Usage</a></li>
+                <li><a href="#sessions" class="tab-link" data-tab="sessions">Sessions</a></li>
+                <li><a href="#profiles" class="tab-link" data-tab="profiles">Profils</a></li>
+                <li><a href="#veille" class="tab-link" data-tab="veille">Veille</a></li>
+                <li><a href="#recs" class="tab-link" data-tab="recs">Recommandations</a></li>
+                <li><a href="#guide" class="tab-link" data-tab="guide">Guide</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="container">
+        <small>claude-profile v0.1.0</small>
+    </footer>
+
+    <script>
+        // Tab endpoints: tab id -> {target: element id, url: endpoint}
+        const tabEndpoints = {
+            sessions:  [{target: '#sessions-content', url: '/api/usage/sessions'}],
+            profiles:  [{target: '#profiles-content', url: '/api/usage/profiles'}],
+            veille:    [
+                {target: '#releases-content', url: '/api/veille/releases'},
+                {target: '#feed-content', url: '/api/veille/feed'},
+                {target: '#community-content', url: '/api/veille/community'},
+            ],
+            recs:      [{target: '#recs-content', url: '/api/recommendations/'}],
+        };
+        const loadedTabs = new Set(['usage']); // usage loads on page load
+
+        document.querySelectorAll('.tab-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tab = link.dataset.tab;
+
+                // Switch active tab
+                document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+                const target = document.getElementById(tab);
+                if (target) target.style.display = 'block';
+
+                // Lazy-load tab content on first visit
+                if (!loadedTabs.has(tab) && tabEndpoints[tab]) {
+                    loadedTabs.add(tab);
+                    tabEndpoints[tab].forEach(ep => {
+                        const el = document.querySelector(ep.target);
+                        if (el) {
+                            el.innerHTML = '<p aria-busy="true">Chargement...</p>';
+                            fetch(ep.url)
+                                .then(r => r.text())
+                                .then(html => { el.innerHTML = html; });
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
