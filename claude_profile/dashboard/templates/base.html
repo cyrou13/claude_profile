@@ -67,8 +67,12 @@
                         if (el) {
                             el.innerHTML = '<p aria-busy="true">Chargement...</p>';
                             fetch(ep.url)
-                                .then(r => r.text())
-                                .then(html => { el.innerHTML = html; });
+                                .then(r => {
+                                    if (!r.ok) throw new Error(r.status);
+                                    return r.text();
+                                })
+                                .then(html => { el.innerHTML = html; })
+                                .catch(err => { el.innerHTML = '<p>Erreur: ' + err.message + '</p>'; });
                         }
                     });
                 }
