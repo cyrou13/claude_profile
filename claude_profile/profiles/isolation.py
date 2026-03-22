@@ -13,10 +13,16 @@ def get_profile_by_name(config: AppConfig, name: str) -> ProfileConfig | None:
     return next((p for p in config.profiles if p.name == name), None)
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize project name: lowercase, unify - and _."""
+    return name.lower().replace("_", "-")
+
+
 def get_profile_for_project(config: AppConfig, project_name: str) -> ProfileConfig | None:
     """Find which profile a project belongs to."""
+    norm = _normalize_name(project_name)
     for profile in config.profiles:
-        if project_name in profile.projects:
+        if norm in {_normalize_name(p) for p in profile.projects}:
             return profile
     return None
 
@@ -43,12 +49,12 @@ def list_profile_projects(
 def list_unassigned_projects(config: AppConfig) -> dict[str, Path]:
     """List projects not assigned to any profile."""
     all_projects = list_projects(config.claude_home)
-    assigned = set()
+    assigned_normalized = set()
     for profile in config.profiles:
-        assigned.update(profile.projects)
+        assigned_normalized.update(_normalize_name(p) for p in profile.projects)
 
     return {
         name: path
         for name, path in all_projects.items()
-        if name not in assigned
+        if _normalize_name(name) not in assigned_normalized
     }

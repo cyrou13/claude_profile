@@ -132,8 +132,18 @@ def parse_sessions(claude_home: Path) -> list[SessionSummary]:
     return sessions
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize project name for matching: lowercase, replace - and _ with same char."""
+    return name.lower().replace("_", "-")
+
+
 def filter_sessions_by_profile(
     sessions: list[SessionSummary], profile_projects: list[str]
 ) -> list[SessionSummary]:
-    """Filter sessions to only those belonging to profile projects."""
-    return [s for s in sessions if s.project_name in profile_projects]
+    """Filter sessions to only those belonging to profile projects.
+
+    Handles naming mismatches between session paths (ct_perfusion)
+    and config names (ct-perfusion) by normalizing both sides.
+    """
+    normalized_projects = {_normalize_name(p) for p in profile_projects}
+    return [s for s in sessions if _normalize_name(s.project_name) in normalized_projects]
