@@ -10,7 +10,8 @@ from claude_profile.dashboard.services.stats_parser import (
     parse_sessions,
     parse_stats_cache,
 )
-from claude_profile.profiles.isolation import get_profile_by_name
+from claude_profile.config import load_state
+from claude_profile.profiles.isolation import get_profile_by_name, list_unassigned_projects
 
 router = APIRouter()
 
@@ -82,19 +83,78 @@ async def sessions_list(request: Request, profile: str | None = None) -> str:
 async def profiles_usage(request: Request) -> str:
     config = request.app.state.config
     sessions = parse_sessions(config.claude_home)
+    state = load_state()
 
     if not config.profiles:
-        return "<p>Aucun profil configure.</p>"
+        return "<p>Aucun profil configure. Ajoute des profils dans <code>~/.config/claude-profile/config.toml</code></p>"
 
-    html = '<div class="grid">'
+    html = ""
+
+    # Active profile banner
+    if state.active_profile:
+        html += f'<article style="border-left:4px solid var(--pico-primary)"><strong>Profil actif :</strong> {state.active_profile}</article>'
+
     for p in config.profiles:
+        is_active = p.name == state.active_profile
         profile_sessions = filter_sessions_by_profile(sessions, p.projects)
         total_duration = sum(s.duration_minutes for s in profile_sessions)
         total_messages = sum(s.user_messages + s.assistant_messages for s in profile_sessions)
-        html += f"""<article>
-            <header><strong>{p.name}</strong></header>
-            <p>{p.description or ''}</p>
-            <p><strong>{len(p.projects)}</strong> projets &middot; <strong>{len(profile_sessions)}</strong> sessions &middot; <strong>{total_duration:.0f}</strong> min &middot; <strong>{total_messages}</strong> messages</p>
-        </article>"""
-    html += "</div>"
+        total_tokens = sum(s.input_tokens + s.output_tokens for s in profile_sessions)
+        total_lines = sum(s.lines_added for s in profile_sessions)
+
+        # Outcomes
+        achieved = sum(1 for s in profile_sessions if s.outcome == "fully_achieved")
+        partial = sum(1 for s in profile_sessions if s.outcome == "partially_achieved")
+        failed = sum(1 for s in profile_sessions if s.outcome == "not_achieved")
+
+        active_mark = ' style="border-left:4px solid var(--pico-primary)"' if is_active else ""
+        badge = " (actif)" if is_active else ""
+
+        html += f'<article{active_mark}>'
+        html += f'<header><strong>{p.name}{badge}</strong><br><small>{p.description or ""}</small></header>'
+
+        # Stats summary
+        html += f'<p><strong>{len(profile_sessions)}</strong> sessions &middot; <strong>{total_duration:.0f}</strong> min &middot; <strong>{total_messages}</strong> messages &middot; <strong>{total_tokens:,}</strong> tokens &middot; <strong>{total_lines}</strong> lignes ajoutees</p>'
+
+        # Outcome bar
+        total_with_outcome = achieved + partial + failed
+        if total_with_outcome > 0:
+            pct_ok = int(achieved / total_with_outcome * 100)
+            pct_partial = int(partial / total_with_outcome * 100)
+            pct_fail = 100 - pct_ok - pct_partial
+            html += '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:0.5rem">'
+            html += f'<div style="width:{pct_ok}%;background:var(--pico-ins-color,#43a047)" title="{achieved} reussis"></div>'
+            html += f'<div style="width:{pct_partial}%;background:var(--pico-ins-color,#f9a825)" title="{partial} partiels"></div>'
+            html += f'<div style="width:{pct_fail}%;background:var(--pico-del-color,#e53935)" title="{failed} echoues"></div>'
+            html += '</div>'
+            html += f'<small class="success">{achieved} reussis</small> &middot; <small>{partial} partiels</small> &middot; <small class="error">{failed} echoues</small>'
+
+        # Project list
+        html += f'<details><summary><strong>{len(p.projects)}</strong> projets</summary><ul>'
+        for proj in sorted(p.projects):
+            proj_sessions = [s for s in profile_sessions if s.project_name == proj]
+            count = len(proj_sessions)
+            proj_msgs = sum(s.user_messages + s.assistant_messages for s in proj_sessions)
+            if count > 0:
+                html += f'<li><code>{proj}</code> — {count} sessions, {proj_msgs} messages</li>'
+            else:
+                html += f'<li><code>{proj}</code> <small style="opacity:0.5">(aucune session)</small></li>'
+        html += '</ul></details>'
+
+        html += '</article>'
+
+    # Unassigned projects
+    unassigned = list_unassigned_projects(config)
+    if unassigned:
+        html += '<article><header><strong>Projets non assignes</strong></header>'
+        html += '<p><small>Ces projets ont des sessions mais ne sont rattaches a aucun profil.</small></p><ul>'
+        for name in sorted(unassigned.keys()):
+            proj_sessions = [s for s in sessions if s.project_name == name]
+            count = len(proj_sessions)
+            if count > 0:
+                html += f'<li><code>{name}</code> — {count} sessions</li>'
+            else:
+                html += f'<li><code>{name}</code></li>'
+        html += '</ul></article>'
+
     return html
