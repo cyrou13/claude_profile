@@ -78,27 +78,36 @@
     <article>
         <header><strong>Installation rapide</strong></header>
         <pre><code># Cloner et installer
-git clone &lt;repo&gt; &amp;&amp; cd claude-profile
+git clone git@github.com:cyrou13/claude_profile.git
+cd claude_profile
+
+# Option 1 : script tout-en-un (installe + lance le dashboard)
+./start.sh
+
+# Option 2 : install manuelle
 uv sync --dev
 
-# Ou avec le script tout-en-un
-./start.sh</code></pre>
+# Rendre la commande disponible globalement
+uv tool install -e .
+
+# Ou executer via uv run (sans install globale)
+uv run claude-profile --help</code></pre>
     </article>
 
     <article>
         <header><strong>Sync multi-machines</strong></header>
         <p>Synchronise tes skills, agents, commands et CLAUDE.md entre Mac et Linux via un repo Git prive.</p>
         <pre><code># Premier setup (cree le repo de sync)
-claude-profile sync init
+uv run claude-profile sync init
 
 # Voir ce qui a change
-claude-profile sync status
+uv run claude-profile sync status
 
 # Envoyer les modifs locales
-claude-profile sync push
+uv run claude-profile sync push
 
 # Recuperer les modifs de l'autre machine
-claude-profile sync pull</code></pre>
+uv run claude-profile sync pull</code></pre>
         <details>
             <summary>Ce qui est synchronise</summary>
             <ul>
@@ -114,22 +123,23 @@ claude-profile sync pull</code></pre>
             <summary>Ce qui est exclu</summary>
             <p>Sessions, historique, cache, telemetrie, stats, plans, IDE, fichiers temporaires.</p>
         </details>
+        <p><strong>Tip :</strong> Si tu as installe globalement avec <code>uv tool install -e .</code>, tu peux utiliser <code>claude-profile</code> directement sans le prefixe <code>uv run</code>.</p>
     </article>
 
     <article>
         <header><strong>Profils perso / pro</strong></header>
         <p>Isole les contextes entre projets personnels et professionnels via des overlays CLAUDE.md.</p>
         <pre><code># Lister les profils
-claude-profile profile list
+uv run claude-profile profile list
 
 # Activer un profil (modifie ~/.claude/CLAUDE.md)
-claude-profile profile activate avicenna
+uv run claude-profile profile activate avicenna
 
 # Voir le profil actif et ses projets
-claude-profile profile show
+uv run claude-profile profile show
 
 # Creer un nouveau profil
-claude-profile profile create devops \
+uv run claude-profile profile create devops \
     --projects "infra,monitoring,ci-cd" \
     --description "Projets DevOps"</code></pre>
         <details>
@@ -144,10 +154,14 @@ claude-profile profile create devops \
         <header><strong>Dashboard</strong></header>
         <p>Interface web pour visualiser ton usage de Claude Code.</p>
         <pre><code># Lancer le dashboard (port 8741 par defaut)
-claude-profile dashboard
+uv run claude-profile dashboard
 
 # Port custom
-claude-profile dashboard --port 9000</code></pre>
+uv run claude-profile dashboard --port 9000
+
+# Ou via le script (gere tout automatiquement)
+./start.sh
+CLAUDE_PROFILE_PORT=9000 ./start.sh</code></pre>
         <table>
             <thead><tr><th>Onglet</th><th>Contenu</th></tr></thead>
             <tbody>
@@ -163,13 +177,14 @@ claude-profile dashboard --port 9000</code></pre>
     <article>
         <header><strong>Veille en CLI</strong></header>
         <p>Consulter les dernieres nouveautes sans ouvrir le dashboard.</p>
-        <pre><code>claude-profile veille</code></pre>
+        <pre><code>uv run claude-profile veille</code></pre>
         <p>Sources : releases GitHub (<code>anthropics/claude-code</code>, <code>modelcontextprotocol/servers</code>), articles dev.to, Hacker News, repos communautaires.</p>
     </article>
 
     <article>
         <header><strong>Configuration</strong></header>
         <p>Fichier : <code>~/.config/claude-profile/config.toml</code></p>
+        <p>Cree automatiquement par <code>./start.sh</code> au premier lancement si absent.</p>
         <pre><code>[general]
 claude_home = "~/.claude"
 sync_repo = "~/Documents/dev/claude-profile-sync"
@@ -203,8 +218,29 @@ claude_md_overlay = """
             <thead><tr><th>Variable</th><th>Usage</th><th>Requis</th></tr></thead>
             <tbody>
                 <tr><td><code>GITHUB_TOKEN</code></td><td>API GitHub (releases, repos communautaires) — augmente le rate limit</td><td>Recommande</td></tr>
+                <tr><td><code>CLAUDE_PROFILE_PORT</code></td><td>Port du dashboard (defaut : 8741). Utilise par <code>start.sh</code></td><td>Non</td></tr>
+                <tr><td><code>CLAUDE_PROFILE_HOST</code></td><td>Host du dashboard (defaut : 127.0.0.1). Utilise par <code>start.sh</code></td><td>Non</td></tr>
             </tbody>
         </table>
+    </article>
+
+    <article>
+        <header><strong>Setup sur une seconde machine</strong></header>
+        <pre><code># 1. Cloner le projet
+git clone git@github.com:cyrou13/claude_profile.git
+cd claude_profile
+
+# 2. Installer
+uv sync --dev
+
+# 3. Copier ta config (ou la recreer)
+# Le fichier est dans ~/.config/claude-profile/config.toml
+
+# 4. Recuperer la config Claude Code synchronisee
+uv run claude-profile sync pull
+
+# 5. Lancer le dashboard
+./start.sh</code></pre>
     </article>
 </section>
 
