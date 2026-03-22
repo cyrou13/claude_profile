@@ -1,5 +1,26 @@
 /* Claude Profile Dashboard */
 
+:root {
+    --pico-font-size: 14px;
+}
+
+main {
+    font-size: 0.9rem;
+}
+
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.15rem; }
+
+article {
+    padding: 0.8rem;
+    margin-bottom: 0.6rem;
+}
+
+article header {
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
 .tab-link {
     cursor: pointer;
     opacity: 0.6;

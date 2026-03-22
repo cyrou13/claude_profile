@@ -18,6 +18,7 @@
                 <li><a href="#usage" class="tab-link active" data-tab="usage">Usage</a></li>
                 <li><a href="#sessions" class="tab-link" data-tab="sessions">Sessions</a></li>
                 <li><a href="#profiles" class="tab-link" data-tab="profiles">Profils</a></li>
+                <li><a href="#config" class="tab-link" data-tab="config">Config</a></li>
                 <li><a href="#veille" class="tab-link" data-tab="veille">Veille</a></li>
                 <li><a href="#recs" class="tab-link" data-tab="recs">Recommandations</a></li>
                 <li><a href="#guide" class="tab-link" data-tab="guide">Guide</a></li>
@@ -43,6 +44,7 @@
                 {target: '#feed-content', url: '/api/veille/feed'},
                 {target: '#community-content', url: '/api/veille/community'},
             ],
+            config:    [{target: '#config-content', url: '/api/config/overview'}],
             recs:      [{target: '#recs-content', url: '/api/recommendations/'}],
         };
         const loadedTabs = new Set(['usage']); // usage loads on page load
@@ -71,7 +73,7 @@
                                     if (!r.ok) throw new Error(r.status);
                                     return r.text();
                                 })
-                                .then(html => { el.innerHTML = html; })
+                                .then(html => { el.innerHTML = html; htmx.process(el); })
                                 .catch(err => { el.innerHTML = '<p>Erreur: ' + err.message + '</p>'; });
                         }
                     });

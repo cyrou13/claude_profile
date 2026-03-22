@@ -36,12 +36,13 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     # Import and include routers
-    from claude_profile.dashboard.routers import profiles, recommendations, usage, veille
+    from claude_profile.dashboard.routers import config, profiles, recommendations, usage, veille
 
     app.include_router(usage.router, prefix="/api/usage", tags=["usage"])
     app.include_router(veille.router, prefix="/api/veille", tags=["veille"])
     app.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
     app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
+    app.include_router(config.router, prefix="/api/config", tags=["config"])
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
