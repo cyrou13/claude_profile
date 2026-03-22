@@ -2,16 +2,56 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from claude_profile.config import load_config, load_state, save_config, save_state
 from claude_profile.dashboard.services.stats_parser import (
+    _normalize_name,
     filter_sessions_by_profile,
     parse_sessions,
 )
 from claude_profile.profiles.isolation import list_unassigned_projects
 from claude_profile.utils.claude_paths import list_projects
+
+
+def _detect_project_info(scan_dirs: list[str], project_name: str) -> dict[str, str]:
+    """Detect project metadata from the filesystem."""
+    info: dict[str, str] = {"path": "", "git": "", "techs": "", "claude_md": ""}
+
+    # Find the project directory
+    norm = _normalize_name(project_name)
+    for scan_dir in scan_dirs:
+        base = Path(scan_dir).expanduser()
+        if not base.exists():
+            continue
+        for d in base.iterdir():
+            if d.is_dir() and _normalize_name(d.name) == norm:
+                info["path"] = str(d)
+                info["git"] = "oui" if (d / ".git").exists() else ""
+
+                techs = []
+                if (d / "pyproject.toml").exists() or (d / "setup.py").exists() or (d / "requirements.txt").exists():
+                    techs.append("Python")
+                if (d / "package.json").exists():
+                    techs.append("JS/TS")
+                if (d / "Dockerfile").exists() or (d / "docker-compose.yml").exists() or (d / "docker-compose.yaml").exists():
+                    techs.append("Docker")
+                if (d / "Cargo.toml").exists():
+                    techs.append("Rust")
+                if (d / "go.mod").exists():
+                    techs.append("Go")
+                info["techs"] = ", ".join(techs)
+
+                if (d / "CLAUDE.md").exists():
+                    lines = len((d / "CLAUDE.md").read_text().splitlines())
+                    info["claude_md"] = f"{lines}L"
+
+                return info
+
+    return info
 
 router = APIRouter()
 
@@ -165,24 +205,76 @@ async def profiles_full(request: Request) -> str:
             html += f'<div style="width:{pct_fail}%;background:var(--pico-del-color,#e53935)"></div>'
             html += '</div>'
 
-        # Project list with remove buttons
+        # Project table with session details
         html += f'<details open><summary><strong>{len(p.projects)}</strong> projets</summary>'
-        html += '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.5rem">'
+        html += '<table style="font-size:0.85em;margin-top:0.3rem"><thead><tr><th>Projet</th><th>Tech</th><th>Git</th><th>CLAUDE.md</th><th>Sessions</th><th>Duree</th><th>Msgs</th><th>Lignes</th><th></th></tr></thead><tbody>'
+
         for proj in sorted(p.projects):
-            proj_sessions = [s for s in profile_sessions if s.project_name == proj]
+            norm_proj = _normalize_name(proj)
+            proj_sessions = sorted(
+                [s for s in profile_sessions if _normalize_name(s.project_name) == norm_proj],
+                key=lambda s: s.start_time or "",
+                reverse=True,
+            )
             count = len(proj_sessions)
-            info = f"{count} sessions" if count > 0 else "aucune session"
-            html += f"""<span style="display:inline-flex;align-items:center;gap:0.3rem;background:var(--pico-muted-border-color);padding:2px 8px;border-radius:12px;font-size:0.85em">
-                <code>{proj}</code>
-                <small style="opacity:0.6">({info})</small>
-                <a href="#" style="color:var(--pico-del-color);text-decoration:none;font-weight:bold"
+            total_dur = sum(s.duration_minutes for s in proj_sessions)
+            total_msgs = sum(s.user_messages + s.assistant_messages for s in proj_sessions)
+            total_lines = sum(s.lines_added for s in proj_sessions)
+
+            proj_info = _detect_project_info(config.sync.scan_dirs, proj)
+            tech_badges = ""
+            for tech in (proj_info["techs"].split(", ") if proj_info["techs"] else []):
+                tech_badges += f'<span style="background:var(--pico-muted-border-color);padding:1px 5px;border-radius:6px;font-size:0.8em">{tech}</span> '
+            git_badge = '<span class="success">git</span>' if proj_info["git"] else '<small style="opacity:0.3">-</small>'
+            claude_badge = f'<small>{proj_info["claude_md"]}</small>' if proj_info["claude_md"] else '<small style="opacity:0.3">-</small>'
+            remove_btn = f"""<a href="#" style="color:var(--pico-del-color);text-decoration:none;font-weight:bold"
                    hx-post="/api/profiles/remove?project={proj}&profile={p.name}"
-                   hx-target="#profiles-content"
-                   hx-swap="innerHTML"
+                   hx-target="#profiles-content" hx-swap="innerHTML"
                    hx-confirm="Retirer {proj} du profil {p.name} ?"
-                   title="Retirer du profil">&times;</a>
-            </span>"""
-        html += '</div></details>'
+                   title="Retirer">&times;</a>"""
+
+            if count > 0:
+                # Row with expandable sessions
+                html += f'<tr><td colspan="9" style="padding:0">'
+                html += f'<details style="margin:0"><summary style="display:flex;align-items:center;padding:0.3rem 0.5rem;gap:0;cursor:pointer">'
+                html += f'<span style="flex:1"><code>{proj}</code></span>'
+                html += f'<span style="width:80px">{tech_badges}</span>'
+                html += f'<span style="width:40px;text-align:center">{git_badge}</span>'
+                html += f'<span style="width:55px;text-align:center">{claude_badge}</span>'
+                html += f'<span style="width:55px;text-align:center"><strong>{count}</strong></span>'
+                html += f'<span style="width:55px;text-align:center">{total_dur:.0f}m</span>'
+                html += f'<span style="width:50px;text-align:center">{total_msgs}</span>'
+                html += f'<span style="width:55px;text-align:center">+{total_lines}</span>'
+                html += f'<span style="width:25px;text-align:center">{remove_btn}</span>'
+                html += '</summary>'
+
+                # Nested sessions table
+                html += '<div style="padding:0 0.5rem 0.5rem 1.5rem">'
+                html += '<table style="font-size:0.85em;margin:0"><thead><tr><th>Date</th><th>Duree</th><th>Msgs</th><th>Code</th><th>Outcome</th><th>Resume / Prompt</th></tr></thead><tbody>'
+                for s in proj_sessions[:20]:
+                    date = s.start_time.strftime("%d/%m %H:%M") if s.start_time else "-"
+                    oc = s.outcome or "-"
+                    oc_short = {"fully_achieved": "OK", "mostly_achieved": "~OK", "partially_achieved": "Partiel", "not_achieved": "Echec"}.get(oc, oc)
+                    cls = "success" if oc == "fully_achieved" else ("error" if oc == "not_achieved" else "")
+                    total_msg = s.user_messages + s.assistant_messages
+                    code = f"+{s.lines_added}" if s.lines_added else "-"
+                    summary = (s.first_prompt or s.summary or "")[:100]
+                    html += f'<tr><td>{date}</td><td>{s.duration_minutes:.0f}m</td><td>{total_msg}</td><td>{code}</td><td><span class="{cls}">{oc_short}</span></td><td><small>{summary}</small></td></tr>'
+                html += '</tbody></table>'
+                if count > 20:
+                    html += f'<small style="opacity:0.5">... et {count - 20} autres</small>'
+                html += '</div></details></td></tr>'
+            else:
+                html += f'<tr>'
+                html += f'<td><code>{proj}</code></td>'
+                html += f'<td>{tech_badges or "<small style=\"opacity:0.3\">-</small>"}</td>'
+                html += f'<td>{git_badge}</td>'
+                html += f'<td>{claude_badge}</td>'
+                html += f'<td style="opacity:0.3">0</td><td style="opacity:0.3">-</td><td style="opacity:0.3">-</td><td style="opacity:0.3">-</td>'
+                html += f'<td>{remove_btn}</td>'
+                html += '</tr>'
+
+        html += '</tbody></table></details>'
 
         html += '</article>'
 
