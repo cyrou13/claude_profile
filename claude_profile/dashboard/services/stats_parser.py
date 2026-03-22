@@ -137,6 +137,16 @@ def _normalize_name(name: str) -> str:
     return name.lower().replace("_", "-")
 
 
+def exclude_hidden_sessions(
+    sessions: list[SessionSummary], hidden_projects: list[str]
+) -> list[SessionSummary]:
+    """Remove sessions from hidden/ignored projects."""
+    if not hidden_projects:
+        return sessions
+    hidden_normalized = {_normalize_name(p) for p in hidden_projects}
+    return [s for s in sessions if _normalize_name(s.project_name) not in hidden_normalized]
+
+
 def filter_sessions_by_profile(
     sessions: list[SessionSummary], profile_projects: list[str]
 ) -> list[SessionSummary]:

@@ -94,6 +94,8 @@ def _config_to_toml(config: AppConfig) -> str:
     lines.append("[dashboard]")
     lines.append(f"port = {config.dashboard.port}")
     lines.append(f'host = "{config.dashboard.host}"')
+    if config.dashboard.hidden_projects:
+        lines.append(f"hidden_projects = {_toml_list(config.dashboard.hidden_projects)}")
     lines.append("")
 
     for profile in config.profiles:

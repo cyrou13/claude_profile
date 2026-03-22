@@ -157,6 +157,101 @@ def profile_create(
     typer.echo(f"Profile '{name}' created with {len(project_list)} projects.")
 
 
+@profile_app.command("scan")
+def profile_scan() -> None:
+    """Scan local directories and show all discovered projects with their profile assignment."""
+    from claude_profile.profiles.isolation import get_profile_for_project
+    from claude_profile.utils.claude_paths import list_projects
+
+    config = _load_cfg()
+    projects = list_projects(config.claude_home)
+
+    # Also scan filesystem for projects not yet seen by Claude
+    for scan_dir in config.sync.scan_dirs:
+        base = Path(scan_dir).expanduser()
+        if not base.exists():
+            continue
+        for d in sorted(base.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                name = d.name
+                if name not in projects:
+                    projects[name] = d
+
+    if not projects:
+        typer.echo("No projects found.")
+        return
+
+    assigned = []
+    unassigned = []
+    for name in sorted(projects.keys()):
+        profile = get_profile_for_project(config, name)
+        if profile:
+            assigned.append((name, profile.name))
+        else:
+            unassigned.append(name)
+
+    if assigned:
+        typer.echo(f"\nAssigned ({len(assigned)}):")
+        for name, prof in assigned:
+            typer.echo(f"  [{prof}] {name}")
+
+    if unassigned:
+        typer.echo(f"\nUnassigned ({len(unassigned)}):")
+        for i, name in enumerate(unassigned, 1):
+            typer.echo(f"  {i}. {name}")
+
+    if unassigned and config.profiles:
+        typer.echo(f"\nUse: claude-profile profile assign <project> <profile>")
+
+
+@profile_app.command("assign")
+def profile_assign(
+    project: str,
+    profile: str,
+) -> None:
+    """Assign a project to a profile.
+
+    Example: claude-profile profile assign jarvis personal
+    """
+    from claude_profile.config import save_config
+
+    config = _load_cfg()
+    target = next((p for p in config.profiles if p.name == profile), None)
+    if not target:
+        typer.echo(f"Profile '{profile}' not found. Available: {', '.join(p.name for p in config.profiles)}")
+        raise typer.Exit(1)
+
+    # Remove from other profiles first
+    for p in config.profiles:
+        if project in p.projects:
+            p.projects.remove(project)
+            typer.echo(f"  Removed from '{p.name}'")
+
+    target.projects.append(project)
+    save_config(config)
+    typer.echo(f"  '{project}' -> {profile}")
+
+
+@profile_app.command("unassign")
+def profile_unassign(project: str) -> None:
+    """Remove a project from its current profile."""
+    from claude_profile.config import save_config
+
+    config = _load_cfg()
+    removed = False
+    for p in config.profiles:
+        if project in p.projects:
+            p.projects.remove(project)
+            removed = True
+            typer.echo(f"  Removed '{project}' from '{p.name}'")
+
+    if not removed:
+        typer.echo(f"  '{project}' is not assigned to any profile.")
+        raise typer.Exit(1)
+
+    save_config(config)
+
+
 # --- Dashboard command ---
 
 

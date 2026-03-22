@@ -174,6 +174,7 @@ class DashboardConfig(BaseModel):
 
     port: int = 8741
     host: str = "127.0.0.1"
+    hidden_projects: list[str] = Field(default_factory=list)
 
 
 class SyncConfig(BaseModel):

@@ -120,6 +120,9 @@ def push_to_repo(config: AppConfig) -> SyncStatus:
     # Extract plugin list
     _sync_plugin_list(config.claude_home, repo)
 
+    # Sync app config (config.toml) so profiles are shared across machines
+    _sync_app_config_push(repo)
+
     # Save manifest
     save_manifest(local_manifest, manifest_path)
 
@@ -171,6 +174,9 @@ def pull_from_repo(config: AppConfig) -> SyncStatus:
 
     # Sync project-level CLAUDE.md files back
     _pull_project_claude_mds(config, repo / "project-claude-md")
+
+    # Sync app config (config.toml) — profiles, veille, dashboard settings
+    _sync_app_config_pull(repo)
 
     # Report plugin differences
     _report_plugin_diff(config.claude_home, repo)
@@ -244,6 +250,64 @@ def _report_plugin_diff(claude_home: Path, repo: Path) -> list[str]:
 
     missing = [name for name in repo_plugins if name not in local_plugins]
     return missing
+
+
+def _sync_app_config_push(repo: Path) -> None:
+    """Copy config.toml into the sync repo so profiles are shared across machines."""
+    from claude_profile.config import CONFIG_FILE
+
+    if CONFIG_FILE.exists():
+        shutil.copy2(CONFIG_FILE, repo / "config.toml")
+
+
+def _sync_app_config_pull(repo: Path) -> None:
+    """Restore config.toml from sync repo, preserving machine-specific paths."""
+    from claude_profile.config import CONFIG_FILE, ensure_config_dir
+
+    repo_config = repo / "config.toml"
+    if not repo_config.exists():
+        return
+
+    # If local config already exists, merge: keep local paths, take remote profiles/veille/dashboard
+    if CONFIG_FILE.exists():
+        import tomllib
+
+        with open(repo_config, "rb") as f:
+            remote = tomllib.load(f)
+        with open(CONFIG_FILE, "rb") as f:
+            local = tomllib.load(f)
+
+        # Keep local machine-specific values
+        remote_general = remote.get("general", {})
+        local_general = local.get("general", {})
+        for key in ("claude_home", "sync_repo"):
+            if key in local_general:
+                remote_general[key] = local_general[key]
+        remote["general"] = remote_general
+
+        # Keep local scan_dirs (paths differ between machines)
+        if "sync" in local and "scan_dirs" in local["sync"]:
+            remote.setdefault("sync", {})["scan_dirs"] = local["sync"]["scan_dirs"]
+
+        # Write merged config using our serializer
+        from claude_profile.config import save_config, load_config
+
+        merged_config = load_config(repo_config)
+        # Restore local paths
+        if "claude_home" in local_general:
+            merged_config.claude_home = Path(local_general["claude_home"]).expanduser()
+        if "sync_repo" in local_general:
+            merged_config.sync_repo = Path(local_general["sync_repo"]).expanduser()
+        if "sync" in local and "scan_dirs" in local["sync"]:
+            merged_config.sync.scan_dirs = [
+                str(Path(d).expanduser()) for d in local["sync"]["scan_dirs"]
+            ]
+
+        save_config(merged_config)
+    else:
+        # No local config — just copy it
+        ensure_config_dir()
+        shutil.copy2(repo_config, CONFIG_FILE)
 
 
 def _cleanup_empty_parents(directory: Path, stop_at: Path) -> None:

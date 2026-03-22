@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from claude_profile.config import load_config, load_state, save_config, save_state
 from claude_profile.dashboard.services.stats_parser import (
     _normalize_name,
+    exclude_hidden_sessions,
     filter_sessions_by_profile,
     parse_sessions,
 )
@@ -99,11 +100,67 @@ async def remove_project(request: Request, project: str, profile: str) -> str:
 
 @router.post("/hide", response_class=HTMLResponse)
 async def hide_project(request: Request, project: str) -> str:
-    """Hide an unassigned project (add to a special 'hidden' list in state)."""
-    state = load_state()
-    if project not in state.hidden_projects:
-        state.hidden_projects.append(project)
-    save_state(state)
+    """Hide a project from the dashboard (persisted in config.toml)."""
+    config = load_config()
+    if project not in config.dashboard.hidden_projects:
+        config.dashboard.hidden_projects.append(project)
+    save_config(config)
+    request.app.state.config = load_config()
+    return await profiles_full(request)
+
+
+@router.post("/purge", response_class=HTMLResponse)
+async def purge_project(request: Request, project: str) -> str:
+    """Delete session files for a project from disk."""
+    import json
+
+    config = load_config()
+    claude_home = config.claude_home
+    norm = _normalize_name(project)
+    deleted = 0
+
+    meta_dir = claude_home / "usage-data" / "session-meta"
+    facets_dir = claude_home / "usage-data" / "facets"
+
+    if meta_dir.exists():
+        for f in list(meta_dir.iterdir()):
+            if f.suffix != ".json":
+                continue
+            try:
+                data = json.loads(f.read_text())
+                proj_path = data.get("project_path", "")
+                proj_name = Path(proj_path).name if proj_path else ""
+                if _normalize_name(proj_name) == norm:
+                    f.unlink()
+                    deleted += 1
+                    # Also delete matching facet
+                    facet = facets_dir / f.name
+                    if facet.exists():
+                        facet.unlink()
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    # Also remove the project directory from ~/.claude/projects/
+    projects_dir = claude_home / "projects"
+    if projects_dir.exists():
+        for d in list(projects_dir.iterdir()):
+            if d.is_dir():
+                from claude_profile.utils.claude_paths import normalize_project_name
+                if _normalize_name(normalize_project_name(d.name)) == norm:
+                    import shutil
+                    shutil.rmtree(d)
+
+    return await profiles_full(request)
+
+
+@router.post("/unhide", response_class=HTMLResponse)
+async def unhide_project(request: Request, project: str) -> str:
+    """Restore a hidden project."""
+    config = load_config()
+    if project in config.dashboard.hidden_projects:
+        config.dashboard.hidden_projects.remove(project)
+    save_config(config)
+    request.app.state.config = load_config()
     return await profiles_full(request)
 
 
@@ -144,10 +201,8 @@ async def profiles_full(request: Request) -> str:
     """Render the full profiles panel HTML."""
     config = request.app.state.config
     sessions = parse_sessions(config.claude_home)
+    sessions = exclude_hidden_sessions(sessions, config.dashboard.hidden_projects)
     state = load_state()
-
-    profile_names = [p.name for p in config.profiles]
-    all_discovered = list_projects(config.claude_home)
 
     html = ""
 
@@ -278,37 +333,64 @@ async def profiles_full(request: Request) -> str:
 
         html += '</article>'
 
-    # Unassigned projects
+    # Unassigned projects (exclude hidden)
     unassigned = list_unassigned_projects(config)
-    hidden = state.hidden_projects
-    visible_unassigned = {k: v for k, v in unassigned.items() if k not in hidden}
+    hidden_normalized = {_normalize_name(h) for h in config.dashboard.hidden_projects}
+    visible_unassigned = {k: v for k, v in unassigned.items() if _normalize_name(k) not in hidden_normalized}
 
     if visible_unassigned:
         html += '<article>'
         html += f'<header><strong>Projets non assignes</strong> ({len(visible_unassigned)})</header>'
-        html += '<p><small>Ces projets existent dans <code>~/.claude/projects/</code> mais ne sont dans aucun profil. Assigne-les ou masque-les.</small></p>'
+        html += '<p><small>Assigne-les a un profil ou masque-les pour ne plus les voir dans les stats.</small></p>'
 
         for name in sorted(visible_unassigned.keys()):
-            proj_sessions = [s for s in sessions if s.project_name == name]
+            proj_sessions = [s for s in sessions if _normalize_name(s.project_name) == _normalize_name(name)]
             count = len(proj_sessions)
             info = f"{count} sessions" if count > 0 else "aucune session"
-
-            # Detect real path for context
-            raw_dir = visible_unassigned[name]
 
             html += f'<div style="display:flex;align-items:center;gap:0.5rem;margin:4px 0;padding:4px 8px;border:1px solid var(--pico-muted-border-color);border-radius:8px">'
             html += f'<code style="flex:1">{name}</code>'
             html += f'<small style="opacity:0.5">{info}</small>'
 
-            # Assign dropdown for each profile
+            # Assign buttons
             for prof in config.profiles:
                 html += f"""<button class="outline" style="font-size:0.7em;padding:2px 8px;margin:0;height:auto"
                     hx-post="/api/profiles/assign?project={name}&profile={prof.name}"
                     hx-target="#profiles-content"
                     hx-swap="innerHTML">&rarr; {prof.name}</button>"""
 
+            # Hide button
+            html += f"""<button class="outline secondary" style="font-size:0.7em;padding:2px 8px;margin:0;height:auto"
+                hx-post="/api/profiles/hide?project={name}"
+                hx-target="#profiles-content"
+                hx-swap="innerHTML"
+                title="Masquer ce projet des stats">masquer</button>"""
+
+            # Purge button (delete session files from disk)
+            html += f"""<button class="outline" style="font-size:0.7em;padding:2px 8px;margin:0;height:auto;color:var(--pico-del-color);border-color:var(--pico-del-color)"
+                hx-post="/api/profiles/purge?project={name}"
+                hx-target="#profiles-content"
+                hx-swap="innerHTML"
+                hx-confirm="Supprimer definitivement les fichiers de session et le dossier projet Claude pour '{name}' ? Cette action est irreversible.">supprimer</button>"""
+
             html += '</div>'
 
         html += '</article>'
+
+    # Hidden projects (collapsible, to allow unhide)
+    if config.dashboard.hidden_projects:
+        html += '<details><summary><small>'
+        html += f'{len(config.dashboard.hidden_projects)} projet(s) masque(s)'
+        html += '</small></summary><div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem">'
+        for name in sorted(config.dashboard.hidden_projects):
+            html += f"""<span style="display:inline-flex;align-items:center;gap:0.3rem;background:var(--pico-muted-border-color);padding:2px 8px;border-radius:12px;font-size:0.85em;opacity:0.6">
+                <code>{name}</code>
+                <a href="#" style="color:var(--pico-ins-color);text-decoration:none"
+                   hx-post="/api/profiles/unhide?project={name}"
+                   hx-target="#profiles-content"
+                   hx-swap="innerHTML"
+                   title="Restaurer">restaurer</a>
+            </span>"""
+        html += '</div></details>'
 
     return html

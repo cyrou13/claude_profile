@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from claude_profile.dashboard.services.stats_parser import (
+    exclude_hidden_sessions,
     filter_sessions_by_profile,
     parse_sessions,
     parse_stats_cache,
@@ -55,6 +56,7 @@ async def usage_summary(request: Request) -> str:
 async def sessions_list(request: Request, profile: str | None = None) -> str:
     config = request.app.state.config
     sessions = parse_sessions(config.claude_home)
+    sessions = exclude_hidden_sessions(sessions, config.dashboard.hidden_projects)
 
     if profile:
         p = get_profile_by_name(config, profile)
