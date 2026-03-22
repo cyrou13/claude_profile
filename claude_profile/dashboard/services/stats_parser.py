@@ -82,11 +82,21 @@ def parse_sessions(claude_home: Path) -> list[SessionSummary]:
         goal = ""
         outcome = ""
         summary = ""
+        session_type = ""
+        helpfulness = ""
+        friction_counts: dict[str, int] = {}
+        friction_detail = ""
+        goal_categories: dict[str, int] = {}
         if facet_file.exists():
             facet = json.loads(facet_file.read_text())
             goal = facet.get("underlying_goal", "")
             outcome = facet.get("outcome", "")
             summary = facet.get("brief_summary", "")
+            session_type = facet.get("session_type", "")
+            helpfulness = facet.get("claude_helpfulness", "")
+            friction_counts = facet.get("friction_counts", {})
+            friction_detail = facet.get("friction_detail", "")
+            goal_categories = facet.get("goal_categories", {})
 
         sessions.append(
             SessionSummary(
@@ -102,9 +112,20 @@ def parse_sessions(claude_home: Path) -> list[SessionSummary]:
                 lines_added=meta.get("lines_added", 0),
                 lines_removed=meta.get("lines_removed", 0),
                 files_modified=meta.get("files_modified", 0),
+                languages=meta.get("languages", {}),
+                git_commits=meta.get("git_commits", 0),
+                first_prompt=meta.get("first_prompt", ""),
+                tool_errors=meta.get("tool_errors", 0),
+                uses_task_agent=meta.get("uses_task_agent", False),
+                uses_mcp=meta.get("uses_mcp", False),
                 goal=goal,
                 outcome=outcome,
                 summary=summary,
+                session_type=session_type,
+                helpfulness=helpfulness,
+                friction_counts=friction_counts,
+                friction_detail=friction_detail,
+                goal_categories=goal_categories,
             )
         )
 

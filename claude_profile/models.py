@@ -140,10 +140,21 @@ class SessionSummary(BaseModel):
     lines_added: int = 0
     lines_removed: int = 0
     files_modified: int = 0
+    languages: dict[str, int] = Field(default_factory=dict)
+    git_commits: int = 0
+    first_prompt: str = ""
+    tool_errors: int = 0
+    uses_task_agent: bool = False
+    uses_mcp: bool = False
     # From facets
     goal: str = ""
     outcome: str = ""
     summary: str = ""
+    session_type: str = ""
+    helpfulness: str = ""
+    friction_counts: dict[str, int] = Field(default_factory=dict)
+    friction_detail: str = ""
+    goal_categories: dict[str, int] = Field(default_factory=dict)
 
 
 class Recommendation(BaseModel):

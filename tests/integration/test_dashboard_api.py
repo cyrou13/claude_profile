@@ -93,7 +93,7 @@ def test_sessions_list(dashboard_client: TestClient) -> None:
     resp = dashboard_client.get("/api/usage/sessions")
     assert resp.status_code == 200
     assert "jarvis" in resp.text
-    assert "fully_achieved" in resp.text
+    assert "Reussi" in resp.text
 
 
 def test_sessions_filter_by_profile(dashboard_client: TestClient) -> None:
