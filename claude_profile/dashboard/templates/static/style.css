@@ -2,6 +2,15 @@
 
 :root {
     --pico-font-size: 15px;
+    --pico-color: #d4d4d8;
+    --pico-h1-color: #f4f4f5;
+    --pico-h2-color: #f4f4f5;
+    --pico-h3-color: #e4e4e7;
+    --pico-muted-color: #a1a1aa;
+}
+
+small, td small, .tab-link {
+    color: #a1a1aa;
 }
 
 h2 { font-size: 1.35rem; }
