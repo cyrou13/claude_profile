@@ -29,13 +29,20 @@ class TestNormalizeProjectName:
         assert normalize_project_name("-simple") == "simple"
 
     def test_hyphenated_project_name(self) -> None:
-        # Edge case: project name contains hyphens
-        # -Users-cyril-Documents-dev-cortex-clinical-affairs
-        # This will return "affairs" — we need the full last meaningful segment
         result = normalize_project_name("-Users-cyril-Documents-dev-cortex-clinical-affairs")
-        # With simple split, this returns "affairs". For compound names,
-        # we rely on the scan_dirs approach to match properly.
-        assert result == "affairs"
+        assert result == "cortex-clinical-affairs"
+
+    def test_hyphenated_project_with_docker(self) -> None:
+        result = normalize_project_name("-Users-cyril-Documents-dev-cortex-clinical-affairs-docker")
+        assert result == "cortex-clinical-affairs-docker"
+
+    def test_linux_hyphenated_project(self) -> None:
+        result = normalize_project_name("-home-ubuntu-dev-my-cool-app")
+        assert result == "my-cool-app"
+
+    def test_underscore_project(self) -> None:
+        result = normalize_project_name("-Users-cyril-Documents-dev-claude_profile")
+        assert result == "claude_profile"
 
 
 class TestListProjects:

@@ -234,3 +234,4 @@ class AppState(BaseModel):
     active_profile: str | None = None
     last_sync: datetime | None = None
     last_veille_check: datetime | None = None
+    hidden_projects: list[str] = Field(default_factory=list)

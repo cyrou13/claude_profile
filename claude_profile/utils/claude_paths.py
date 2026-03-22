@@ -22,9 +22,30 @@ def normalize_project_name(encoded_dir_name: str) -> str:
       macOS:  -Users-cyril-Documents-dev-jarvis
       Linux:  -home-cyril-dev-jarvis
 
-    We normalize to just the last meaningful component: 'jarvis'
+    The last path component is the project name, but project names
+    can themselves contain hyphens (e.g. cortex-clinical-affairs).
+
+    Strategy: strip the known path prefix up to the dev/projects dir,
+    then everything remaining is the project name.
     """
-    # Split on hyphens, filter empty strings
+    # Known path prefixes that precede the actual project name.
+    # We try to match the longest prefix first.
+    # Pattern: -Users-<user>-Documents-dev- or -home-<user>-dev- etc.
+    import re
+
+    # Match common path patterns: everything up to a known dev directory
+    # macOS: -Users-<user>-Documents-dev-<project>
+    # Linux: -home-<user>-dev-<project> or -home-<user>-projects-<project>
+    match = re.match(
+        r"^-(?:Users|home)-[^-]+-(?:Documents-)?(?:dev|projects|code|src|repos|workspace)-",
+        encoded_dir_name,
+    )
+    if match:
+        project_part = encoded_dir_name[match.end():]
+        if project_part:
+            return project_part
+
+    # Fallback for paths like -Users-cyril (no project component)
     parts = [p for p in encoded_dir_name.split("-") if p]
     if not parts:
         return encoded_dir_name
