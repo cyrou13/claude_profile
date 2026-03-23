@@ -184,6 +184,7 @@ class SyncConfig(BaseModel):
         default_factory=lambda: [
             "CLAUDE.md",
             "settings.json",
+            "statusline.sh",
             "skills/",
             "agents/",
             "commands/",
